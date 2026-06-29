@@ -1,112 +1,68 @@
 """
-Punto de entrada temporal de la aplicación.
-
-Este archivo permite verificar que:
-
-- El archivo .env se carga correctamente.
-- La configuración general es válida.
-- El directorio de logs se crea automáticamente.
-- Los diferentes niveles de logging se almacenan correctamente.
-- Las excepciones con traceback quedan registradas.
+Punto de entrada temporal para probar la pipeline de importación
+de candidatos estelares.
 """
 
 from __future__ import annotations
 
-# config debe importarse antes de inicializar el logger, ya que se encarga
-# de cargar las variables del archivo .env.
 from etl.config import settings
+from etl.extractors.files import CsvExtractor
 from etl.logger import configure_logging, get_logger
+from etl.pipelines import ImportStarCandidatesPipeline
+from etl.transformers import StarCandidateTransformer
 
 
 logger = get_logger(__name__)
 
 
-def test_successful_operation() -> None:
-    """
-    Simula una operación ejecutada correctamente.
-    """
-
-    logger.info("Iniciando operación de prueba.")
-
-    records_processed = 25
-
-    logger.debug(
-        "Procesando registros de prueba. records=%d",
-        records_processed,
-    )
-
-    logger.info(
-        "Operación de prueba completada. records=%d",
-        records_processed,
-    )
-
-
-def test_warning() -> None:
-    """
-    Simula una situación no crítica que requiere atención.
-    """
-
-    logger.warning(
-        "Se ha detectado una situación de prueba no crítica."
-    )
-
-
-def test_controlled_exception() -> None:
-    """
-    Simula una excepción controlada y registra su traceback.
-
-    La excepción queda almacenada en application.log y errors.log, pero no
-    finaliza la ejecución porque se captura dentro de esta función.
-    """
-
-    try:
-        numerator = 10
-        denominator = 0
-
-        logger.debug(
-            "Realizando división de prueba. numerator=%d denominator=%d",
-            numerator,
-            denominator,
-        )
-
-        _ = numerator / denominator
-
-    except ZeroDivisionError:
-        logger.exception(
-            "Se ha producido una excepción controlada durante la prueba."
-        )
-
-
 def main() -> None:
     """
-    Ejecuta las pruebas básicas del sistema de logging.
+    Ejecuta la pipeline de importación de resultados.csv.
     """
+    logger.info(
+        "----------------------------------------------------------------"
+    )
 
     configure_logging()
 
+    csv_path = settings.project_root / "resultados.csv"
+
     logger.info(
-        "Aplicación iniciada. app_name=%s environment=%s",
-        settings.app_name,
-        settings.app_environment,
+        "Iniciando aplicación ETL. source=%s",
+        csv_path,
     )
 
     try:
-        test_successful_operation()
-        test_warning()
-        test_controlled_exception()
+        extractor = CsvExtractor(csv_path)
+        transformer = StarCandidateTransformer()
+
+        pipeline = ImportStarCandidatesPipeline(
+            extractor=extractor,
+            transformer=transformer,
+        )
+
+        result = pipeline.run(
+            skip_invalid_rows=False,
+        )
+
+        first_candidate = result.candidates[0]
 
         logger.info(
-            "Todas las pruebas del logger han finalizado."
+            "Ejecución completada correctamente. "
+            "candidates=%d first_alert_id=%s success_rate=%.2f",
+            result.valid_rows,
+            first_candidate.alert_id,
+            result.success_rate,
         )
 
     except Exception:
         logger.exception(
-            "La aplicación ha finalizado debido a un error inesperado."
+            "La aplicación ETL ha finalizado debido a un error."
         )
         raise
 
     finally:
-        logger.info("Aplicación finalizada.")
+        logger.info("Aplicación ETL finalizada.")
 
 
 if __name__ == "__main__":

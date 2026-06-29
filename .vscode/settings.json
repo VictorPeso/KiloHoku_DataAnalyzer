@@ -1,10 +1,39 @@
 {
   "python-envs.defaultEnvManager": "ms-python.python:venv",
   "material-icon-theme.folders.associations": {
-    "extract": "download",
-    "transform": "tools",
+    "extractors": "download",
+    "transformers": "tools",
     "load": "upload",
     "etl": "element",
-    "kilo_hoku_etl.egg-info": "meta"
-  }
+    "kilo_hoku_etl.egg-info": "meta",
+    "domain": "class",
+    "entities": "entities-class",
+    "value_objects": "value_objects-class",
+    "files": "docs-files"
+  },
+
+  "material-icon-theme.folders.customClones": [
+    {
+      "name": "entities-class",
+      "base": "class",
+      "color": "light-green-500",
+      "lightColor": "light-green-700",
+      "folderNames": ["entities"],
+      "rootFolderNames": ["entities"]
+    },
+    {
+      "name": "value_objects-class",
+      "base": "class",
+      "color": "purple-400",
+      "folderNames": ["value_objects"],
+      "rootFolderNames": ["value_objects"]
+    },
+    {
+      "name": "docs-files",
+      "base": "docs",
+      "color": "teal-400",
+      "folderNames": ["files"],
+      "rootFolderNames": ["files"]
+    }
+  ]
 }

@@ -42,12 +42,13 @@ import logging
 import os
 import sys
 import threading
-import time
 import uuid
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from types import TracebackType
 from typing import Final
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 
 DEFAULT_LOG_DIRECTORY: Final[str] = "logs"
@@ -65,15 +66,13 @@ _ERROR_LOG_FILENAME: Final[str] = "errors.log"
 _LOG_FORMAT: Final[str] = (
     "%(asctime)s | "
     "%(levelname)-8s | "
-    "run=%(run_id)s | "
-    "process=%(process)d | "
-    "thread=%(threadName)s | "
+    "%(message)s | "
     "%(name)s | "
     "%(module)s.%(funcName)s:%(lineno)d | "
-    "%(message)s"
+    "run=%(run_id)s | "
+    "process=%(process)d | "
+    "thread=%(threadName)s"
 )
-
-_DATE_FORMAT: Final[str] = "%Y-%m-%dT%H:%M:%S%z"
 
 _configured = False
 _run_id = uuid.uuid4().hex
@@ -127,20 +126,40 @@ class ErrorLogFilter(logging.Filter):
 
 class ProductionFormatter(logging.Formatter):
     """
-    Formateador configurable para usar fechas UTC o locales.
+    Formateador que genera fechas ISO 8601 con una zona horaria explícita.
     """
 
     def __init__(
         self,
         fmt: str,
-        datefmt: str,
         *,
         use_utc: bool,
+        timezone_name: str,
     ) -> None:
-        super().__init__(fmt=fmt, datefmt=datefmt)
+        super().__init__(fmt=fmt)
 
         if use_utc:
-            self.converter = time.gmtime
+            self._timezone = timezone.utc
+        else:
+            self._timezone = ZoneInfo(timezone_name)
+
+    def formatTime(
+        self,
+        record: logging.LogRecord,
+        datefmt: str | None = None,
+    ) -> str:
+        """
+        Devuelve la fecha del registro en formato ISO 8601.
+        """
+
+        log_datetime = datetime.fromtimestamp(
+            record.created,
+            tz=self._timezone,
+        )
+
+        return log_datetime.isoformat(
+            timespec="seconds",
+        )
 
 
 def _get_boolean_environment_variable(
@@ -368,14 +387,19 @@ def configure_logging() -> None:
         default=True,
     )
 
+    timezone_name = os.getenv(
+        "LOG_TIMEZONE",
+        "Europe/Madrid",
+    ).strip()
+
     application_directory, error_directory = (
         _create_log_directories(log_root_directory)
     )
 
     formatter = ProductionFormatter(
         fmt=_LOG_FORMAT,
-        datefmt=_DATE_FORMAT,
         use_utc=use_utc,
+        timezone_name=timezone_name,
     )
 
     application_handler = _create_rotating_file_handler(
