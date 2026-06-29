@@ -1,0 +1,27 @@
+# Entornos virtuales
+.venv/
+venv/
+
+# Variables de entorno
+.env
+
+# Logs
+logs/
+
+# Caché de Python
+__pycache__/
+*.py[cod]
+
+# Metadatos de instalación
+*.egg-info/
+
+# Artefactos de construcción
+build/
+dist/
+
+# Pytest
+.pytest_cache/
+
+# Cobertura
+.coverage
+htmlcov/

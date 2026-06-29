@@ -1,0 +1,10 @@
+{
+  "python-envs.defaultEnvManager": "ms-python.python:venv",
+  "material-icon-theme.folders.associations": {
+    "extract": "download",
+    "transform": "tools",
+    "load": "upload",
+    "etl": "element",
+    "kilo_hoku_etl.egg-info": "meta"
+  }
+}
