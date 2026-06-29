@@ -3,7 +3,7 @@
   "material-icon-theme.folders.associations": {
     "extractors": "download",
     "transformers": "tools",
-    "load": "upload",
+    "loaders": "upload",
     "etl": "element",
     "kilo_hoku_etl.egg-info": "meta",
     "domain": "class",
