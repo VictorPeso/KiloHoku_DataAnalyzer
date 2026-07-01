@@ -151,25 +151,18 @@ class StarCandidateRepository:
         alert_id: str,
     ) -> StarCandidateModel | None:
         """
-        Busca un candidato mediante el identificador final de la alerta.
+        Busca un candidato mediante su identificador ZTF.
 
-        Por ejemplo:
+        Ejemplo:
 
-            ZTF17aaajocf
-
-        Como el identificador se encuentra al final de alert_url, se utiliza
-        una búsqueda por sufijo.
+            ZTF17aaaacsm
 
         Args:
             alert_id:
-                Identificador externo de la alerta.
+                Identificador externo único del candidato.
 
         Returns:
             Modelo encontrado o None.
-
-        Notes:
-            La operación por alert_url completa es más precisa y eficiente.
-            Este método es útil cuando solamente se conoce el identificador.
         """
 
         normalized_alert_id = self._normalize_required_string(
@@ -178,9 +171,7 @@ class StarCandidateRepository:
         )
 
         statement = select(StarCandidateModel).where(
-            StarCandidateModel.alert_url.endswith(
-                f"/{normalized_alert_id}"
-            )
+            StarCandidateModel.alert_id == normalized_alert_id
         )
 
         return self._session.scalar(statement)
@@ -246,6 +237,37 @@ class StarCandidateRepository:
             .where(
                 StarCandidateModel.alert_url
                 == normalized_alert_url
+            )
+            .exists()
+        )
+
+        return bool(self._session.scalar(statement))
+    
+    def exists_by_alert_id(
+        self,
+        alert_id: str,
+    ) -> bool:
+        """
+        Comprueba si existe un candidato con el alert_id indicado.
+
+        Args:
+            alert_id:
+                Identificador externo del candidato.
+
+        Returns:
+            True si el candidato existe.
+        """
+
+        normalized_alert_id = self._normalize_required_string(
+            alert_id,
+            field_name="alert_id",
+        )
+
+        statement = select(
+            select(StarCandidateModel.id)
+            .where(
+                StarCandidateModel.alert_id
+                == normalized_alert_id
             )
             .exists()
         )
@@ -376,8 +398,8 @@ class StarCandidateRepository:
 
         self._validate_candidate(candidate)
 
-        existing_model = self.get_by_alert_url(
-            candidate.alert_url
+        existing_model = self.get_by_alert_id(
+            candidate.alert_id
         )
 
         if existing_model is None:

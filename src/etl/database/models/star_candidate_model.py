@@ -11,9 +11,6 @@ La entidad de dominio y el modelo ORM están separados deliberadamente:
 
     StarCandidateModel
         Representa la fila almacenada en la base de datos.
-
-El modelo también proporciona métodos para convertir entre ambas
-representaciones.
 """
 
 from __future__ import annotations
@@ -39,30 +36,35 @@ from etl.database.base import Base
 from etl.domain.entities import StarCandidate
 
 
+MAX_ALERT_ID_LENGTH: Final[int] = 128
 MAX_ALERT_URL_LENGTH: Final[int] = 2048
 MAX_SIMBAD_TARGET_LENGTH: Final[int] = 2048
 MAX_GAIA_DR3_NAME_LENGTH: Final[int] = 128
 MAX_OBJECT_CLASS_LENGTH: Final[int] = 128
-MAX_RESOURCE_URL_LENGTH: Final[int] = 2048
 
 
 class StarCandidateModel(Base):
     """
     Modelo ORM de un candidato estelar.
 
-    Cada instancia representa una fila de la tabla ``star_candidates``.
+    ``alert_id`` contiene el identificador externo del candidato:
 
-    La clave primaria interna ``id`` se utiliza únicamente dentro de la base
-    de datos. La alerta astronómica se identifica externamente mediante
-    ``alert_url`` y la propiedad derivada ``alert_id`` de la entidad.
+        ZTF17aaaacsm
+
+    ``id`` es la clave primaria interna utilizada para las relaciones
+    dentro de PostgreSQL.
     """
 
     __tablename__ = "star_candidates"
 
     __table_args__ = (
         UniqueConstraint(
+            "alert_id",
+            name="uq_star_candidates_alert_id",
+        ),
+        UniqueConstraint(
             "alert_url",
-            name="alert_url",
+            name="uq_star_candidates_alert_url",
         ),
         CheckConstraint(
             "right_ascension >= 0 AND right_ascension < 360",
@@ -109,6 +111,11 @@ class StarCandidateModel(Base):
         BigInteger,
         primary_key=True,
         autoincrement=True,
+    )
+
+    alert_id: Mapped[str] = mapped_column(
+        String(MAX_ALERT_ID_LENGTH),
+        nullable=False,
     )
 
     alert_url: Mapped[str] = mapped_column(
@@ -226,21 +233,7 @@ class StarCandidateModel(Base):
         candidate: StarCandidate,
     ) -> StarCandidateModel:
         """
-        Crea un modelo ORM a partir de una entidad de dominio.
-
-        Este método no añade el modelo a ninguna sesión ni ejecuta ninguna
-        consulta. Únicamente realiza la conversión de datos.
-
-        Args:
-            candidate:
-                Entidad StarCandidate que debe convertirse.
-
-        Returns:
-            Nueva instancia de StarCandidateModel.
-
-        Raises:
-            TypeError:
-                Si el objeto recibido no es StarCandidate.
+        Crea un modelo ORM a partir de una entidad StarCandidate.
         """
 
         if not isinstance(candidate, StarCandidate):
@@ -249,6 +242,7 @@ class StarCandidateModel(Base):
             )
 
         return cls(
+            alert_id=candidate.alert_id,
             alert_url=candidate.alert_url,
             observation_date=candidate.observation_date,
             right_ascension=candidate.right_ascension,
@@ -276,10 +270,6 @@ class StarCandidateModel(Base):
     def to_domain(self) -> StarCandidate:
         """
         Convierte el modelo ORM en una entidad de dominio.
-
-        Returns:
-            Nueva entidad StarCandidate con los datos almacenados en el
-            modelo.
         """
 
         return StarCandidate(
@@ -310,22 +300,7 @@ class StarCandidateModel(Base):
         """
         Actualiza el modelo ORM usando una entidad de dominio.
 
-        Este método resulta útil cuando ya existe un registro para la misma
-        alerta y se desean actualizar sus datos durante una nueva importación.
-
-        No ejecuta commit. La confirmación de la transacción corresponde a
-        ``session_scope``.
-
-        Args:
-            candidate:
-                Entidad con los nuevos valores.
-
-        Raises:
-            TypeError:
-                Si el objeto recibido no es StarCandidate.
-
-            ValueError:
-                Si la entidad pertenece a una alerta diferente.
+        No permite cambiar la identidad externa del candidato.
         """
 
         if not isinstance(candidate, StarCandidate):
@@ -333,9 +308,18 @@ class StarCandidateModel(Base):
                 "candidate debe ser una instancia de StarCandidate."
             )
 
+        if candidate.alert_id != self.alert_id:
+            raise ValueError(
+                "No se puede actualizar un modelo con un alert_id "
+                "diferente. "
+                f"Modelo: {self.alert_id!r}. "
+                f"Entidad: {candidate.alert_id!r}."
+            )
+
         if candidate.alert_url != self.alert_url:
             raise ValueError(
-                "No se puede actualizar un modelo con una alerta diferente. "
+                "No se puede actualizar un modelo con una alert_url "
+                "diferente. "
                 f"Modelo: {self.alert_url!r}. "
                 f"Entidad: {candidate.alert_url!r}."
             )
@@ -365,14 +349,3 @@ class StarCandidateModel(Base):
 
         self.data_file_url = candidate.data_file_url
         self.plot_url = candidate.plot_url
-
-    @property
-    def alert_id(self) -> str:
-        """
-        Obtiene el identificador de alerta a partir de ``alert_url``.
-
-        Returns:
-            Parte final de la URL de alerta.
-        """
-
-        return self.alert_url.rstrip("/").rsplit("/", maxsplit=1)[-1]

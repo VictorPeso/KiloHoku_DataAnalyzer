@@ -11,7 +11,11 @@ estabilice, estas operaciones deberán sustituirse por migraciones Alembic.
 from __future__ import annotations
 
 from etl.database.base import Base
-from etl.database.models import StarCandidateModel
+from etl.database.models import (
+    LightCurveModel,
+    LightCurveObservationModel,
+    StarCandidateModel,
+)
 from etl.database.session import get_engine
 from etl.logger import get_logger
 
@@ -30,7 +34,11 @@ def create_database_schema() -> None:
 
     # Esta referencia asegura que StarCandidateModel haya sido importado
     # y registrado dentro de Base.metadata.
-    _ = StarCandidateModel
+    _ = (
+        StarCandidateModel,
+        LightCurveModel,
+        LightCurveObservationModel,
+    )
 
     logger.info(
         "Iniciando creación del esquema de base de datos. tables=%s",
