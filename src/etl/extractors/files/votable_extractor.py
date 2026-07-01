@@ -36,24 +36,14 @@ from etl.domain.value_objects import PhotometricBand
 from etl.extractors.base import BaseExtractor
 from etl.extractors.exceptions import (
     ExtractionError,
+    InvalidVOTableError,
     SourceFileNotFoundError,
+    VOTableRowError,
 )
 from etl.logger import get_logger
 
 
 logger = get_logger(__name__)
-
-
-class InvalidVOTableError(ExtractionError):
-    """
-    Error producido cuando el VOTable no tiene una estructura válida.
-    """
-
-
-class VOTableRowError(ExtractionError):
-    """
-    Error producido al convertir una fila del VOTable.
-    """
 
 
 class VOTableExtractor(BaseExtractor[list[LightCurve]]):

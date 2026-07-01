@@ -1,26 +1,77 @@
 """
-Excepciones relacionadas con la extracción de datos.
+Excepciones de la capa de extracción.
 
-Estas excepciones permiten distinguir los errores de lectura de archivos
-de los errores producidos durante la transformación o validación.
+Todas las excepciones propias de los extractores heredan de
+``ExtractionError``.
+
+Esto permite capturar:
+
+- Todos los errores de extracción de forma general.
+- Errores concretos cuando se necesita un tratamiento específico.
 """
-
-from __future__ import annotations
 
 
 class ExtractionError(RuntimeError):
     """
-    Error general producido durante la extracción de datos.
+    Error base producido durante la extracción de datos.
     """
 
 
 class SourceFileNotFoundError(ExtractionError):
     """
-    Indica que el archivo de origen no existe.
+    Error producido cuando un archivo de origen no existe.
     """
 
 
 class InvalidCsvStructureError(ExtractionError):
     """
-    Indica que el CSV no tiene la estructura esperada.
+    Error producido cuando un CSV no tiene la estructura esperada.
+    """
+
+
+class InvalidVOTableError(ExtractionError):
+    """
+    Error producido cuando un VOTable no tiene una estructura válida.
+    """
+
+
+class VOTableRowError(ExtractionError):
+    """
+    Error producido al convertir una fila de un VOTable.
+    """
+
+
+class ApiExtractionError(ExtractionError):
+    """
+    Error base producido al consultar una API externa.
+    """
+
+
+class ApiConnectionError(ApiExtractionError):
+    """
+    Error de red, conexión o tiempo de espera al consultar una API.
+    """
+
+
+class ApiResponseError(ApiExtractionError):
+    """
+    Error producido cuando una API devuelve una respuesta inválida.
+    """
+
+
+class IrsaClientError(ApiExtractionError):
+    """
+    Error base específico del cliente NASA/IPAC IRSA.
+    """
+
+
+class IrsaConnectionError(IrsaClientError):
+    """
+    Error de conexión o timeout al consultar IRSA.
+    """
+
+
+class IrsaResponseError(IrsaClientError):
+    """
+    Error producido por una respuesta inválida de IRSA.
     """
