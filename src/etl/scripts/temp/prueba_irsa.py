@@ -17,7 +17,6 @@ from etl.logger import configure_logging
 
 
 ALERT_ID = "ZTF17aaajocf"
-SEARCH_RADIUS_DEGREES = 0.0014
 
 
 def main() -> None:
@@ -40,14 +39,14 @@ def main() -> None:
         query = IrsaLightCurveQuery(
             right_ascension=candidate_ra,
             declination=candidate_dec,
-            radius_degrees=SEARCH_RADIUS_DEGREES,
+            radius_degrees=settings.irsa_search_radius_degrees,
             band=PhotometricBand.G,
-            minimum_observations=15,
+            minimum_observations=(
+                settings.irsa_minimum_observations
+            ),
         )
 
-        client = IrsaClient(
-            timeout_seconds=60.0,
-        )
+        client = IrsaClient()
 
         votable_content = client.download_light_curves(query)
 
@@ -69,7 +68,9 @@ def main() -> None:
             source_path=temporary_path,
             search_right_ascension=candidate_ra,
             search_declination=candidate_dec,
-            search_radius_degrees=SEARCH_RADIUS_DEGREES,
+            search_radius_degrees=(
+                settings.irsa_search_radius_degrees
+            ),
         )
 
         curves = extractor.extract()

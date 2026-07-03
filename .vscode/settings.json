@@ -1,5 +1,11 @@
 {
   "python-envs.defaultEnvManager": "ms-python.python:venv",
+  "material-icon-theme.files.associations": {
+    "__init__.py": "tree",
+    "config.py": "settings",
+    "logger.py": "log"
+  },
+
   "material-icon-theme.folders.associations": {
     "extractors": "download",
     "transformers": "tools",
@@ -9,7 +15,8 @@
     "domain": "class",
     "entities": "entities-class",
     "value_objects": "value_objects-class",
-    "files": "docs-files"
+    "files": "docs-files",
+    "selectors": "selectors-routes"
   },
 
   "material-icon-theme.folders.customClones": [
@@ -34,6 +41,13 @@
       "color": "teal-400",
       "folderNames": ["files"],
       "rootFolderNames": ["files"]
+    },
+    {
+      "name": "selectors-routes",
+      "base": "routes",
+      "color": "purple-400",
+      "folderNames": ["selectors"],
+      "rootFolderNames": ["selectors"]
     }
   ]
 }

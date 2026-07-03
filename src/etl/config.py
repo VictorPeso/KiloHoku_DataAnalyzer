@@ -16,6 +16,7 @@ cargarse antes de inicializar el sistema de logging.
 from __future__ import annotations
 
 import os
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
@@ -146,12 +147,41 @@ class Settings:
 
         env_file:
             Ruta absoluta al archivo .env utilizado.
+        
+        irsa_search_radius_degrees:
+            Radio de búsqueda en grados para consultas a IRSA.
+
+        irsa_minimum_observations:
+            Número mínimo de observaciones requerido para cada objeto en
+            consultas a IRSA.
+        
+        irsa_bad_catalog_flags_mask:
+            Máscara opcional para excluir observaciones con determinados
+            catflags en consultas a IRSA.
+        
+        irsa_request_timeout_seconds:
+            Tiempo máximo de espera en segundos para peticiones a IRSA.
+        
+        irsa_request_delay_seconds:
+            Tiempo de espera en segundos entre peticiones a IRSA.
+        
+        irsa_max_retries:
+            Número máximo de reintentos para peticiones a IRSA en caso de
+            error.
     """
 
     app_name: str
     app_environment: str
     project_root: Path
     env_file: Path
+
+    # IRSA / ZTF Light Curve API
+    irsa_search_radius_degrees: float
+    irsa_minimum_observations: int
+    irsa_bad_catalog_flags_mask: int
+    irsa_request_timeout_seconds: float
+    irsa_request_delay_seconds: float
+    irsa_max_retries: int
 
     @property
     def is_development(self) -> bool:
@@ -170,6 +200,24 @@ class Settings:
         """Indica si la aplicación se ejecuta en producción."""
 
         return self.app_environment == "production"
+    
+    @property
+    def irsa_search_radius_arcseconds(self) -> float:
+        """
+        Devuelve el radio de búsqueda de IRSA en segundos de arco.
+        """
+
+        return self.irsa_search_radius_degrees * 3600.0
+    
+    @property
+    def irsa_retry_attempts(self) -> int:
+        """
+        Devuelve el número total máximo de peticiones.
+
+        Incluye la petición inicial y los reintentos posteriores.
+        """
+
+        return self.irsa_max_retries
 
 
 def _create_settings() -> Settings:
@@ -197,6 +245,31 @@ def _create_settings() -> Settings:
         DEFAULT_APP_ENV,
     ).lower()
 
+    irsa_search_radius_degrees=_get_positive_float(
+        "IRSA_SEARCH_RADIUS_DEGREES",
+        default=0.00042,
+    )
+    irsa_minimum_observations=_get_positive_integer(
+        "IRSA_MINIMUM_OBSERVATIONS",
+        default=15,
+    )
+    irsa_bad_catalog_flags_mask=_get_non_negative_integer(
+        "IRSA_BAD_CATALOG_FLAGS_MASK",
+        default=65535,
+    )
+    irsa_request_timeout_seconds=_get_positive_float(
+        "IRSA_REQUEST_TIMEOUT_SECONDS",
+        default=60.0,
+    )
+    irsa_request_delay_seconds=_get_non_negative_float(
+        "IRSA_REQUEST_DELAY_SECONDS",
+        default=1.0,
+    )
+    irsa_max_retries=_get_positive_integer(
+        "IRSA_MAX_RETRIES",
+        default=5,
+    )
+
     if app_environment not in VALID_ENVIRONMENTS:
         valid_values = ", ".join(sorted(VALID_ENVIRONMENTS))
 
@@ -210,7 +283,203 @@ def _create_settings() -> Settings:
         app_environment=app_environment,
         project_root=project_root,
         env_file=env_file,
+        irsa_search_radius_degrees=irsa_search_radius_degrees,
+        irsa_minimum_observations=irsa_minimum_observations,
+        irsa_bad_catalog_flags_mask=irsa_bad_catalog_flags_mask,
+        irsa_request_timeout_seconds=irsa_request_timeout_seconds,
+        irsa_request_delay_seconds=irsa_request_delay_seconds,
+        irsa_max_retries=irsa_max_retries,
     )
 
+def _get_positive_float(
+    variable_name: str,
+    *,
+    default: float,
+) -> float:
+    """
+    Lee una variable de entorno como número real positivo.
+
+    Args:
+        variable_name:
+            Nombre de la variable de entorno.
+
+        default:
+            Valor utilizado cuando la variable no está definida.
+
+    Returns:
+        Número real finito y mayor que cero.
+
+    Raises:
+        ValueError:
+            Si el valor no es numérico, no es finito o no es positivo.
+    """
+
+    raw_value = os.getenv(
+        variable_name,
+        str(default),
+    ).strip()
+
+    try:
+        value = float(raw_value)
+    except ValueError as error:
+        raise ValueError(
+            f"{variable_name} debe contener un número real. "
+            f"Valor recibido: {raw_value!r}."
+        ) from error
+
+    if not math.isfinite(value):
+        raise ValueError(
+            f"{variable_name} debe contener un número finito. "
+            f"Valor recibido: {raw_value!r}."
+        )
+
+    if value <= 0:
+        raise ValueError(
+            f"{variable_name} debe ser mayor que cero. "
+            f"Valor recibido: {value}."
+        )
+
+    return value
+
+def _get_non_negative_float(
+    variable_name: str,
+    *,
+    default: float,
+) -> float:
+    """
+    Lee una variable de entorno como número real no negativo.
+
+    Se utiliza para valores como el tiempo mínimo entre peticiones, donde
+    cero permite desactivar la espera.
+
+    Args:
+        variable_name:
+            Nombre de la variable de entorno.
+
+        default:
+            Valor utilizado cuando la variable no está definida.
+
+    Returns:
+        Número real finito igual o superior a cero.
+
+    Raises:
+        ValueError:
+            Si el valor no es numérico, no es finito o es negativo.
+    """
+
+    raw_value = os.getenv(
+        variable_name,
+        str(default),
+    ).strip()
+
+    try:
+        value = float(raw_value)
+    except ValueError as error:
+        raise ValueError(
+            f"{variable_name} debe contener un número real. "
+            f"Valor recibido: {raw_value!r}."
+        ) from error
+
+    if not math.isfinite(value):
+        raise ValueError(
+            f"{variable_name} debe contener un número finito. "
+            f"Valor recibido: {raw_value!r}."
+        )
+
+    if value < 0:
+        raise ValueError(
+            f"{variable_name} no puede ser negativo. "
+            f"Valor recibido: {value}."
+        )
+
+    return value
+
+def _get_positive_integer(
+    variable_name: str,
+    *,
+    default: int,
+) -> int:
+    """
+    Lee una variable de entorno como número entero positivo.
+
+    Args:
+        variable_name:
+            Nombre de la variable de entorno.
+
+        default:
+            Valor utilizado cuando la variable no está definida.
+
+    Returns:
+        Número entero mayor que cero.
+
+    Raises:
+        ValueError:
+            Si el valor no es un entero o no es positivo.
+    """
+
+    raw_value = os.getenv(
+        variable_name,
+        str(default),
+    ).strip()
+
+    try:
+        value = int(raw_value)
+    except ValueError as error:
+        raise ValueError(
+            f"{variable_name} debe contener un número entero. "
+            f"Valor recibido: {raw_value!r}."
+        ) from error
+
+    if value <= 0:
+        raise ValueError(
+            f"{variable_name} debe ser mayor que cero. "
+            f"Valor recibido: {value}."
+        )
+
+    return value
+
+def _get_non_negative_integer(
+    variable_name: str,
+    *,
+    default: int,
+) -> int:
+    """
+    Lee una variable de entorno como número entero no negativo.
+
+    Args:
+        variable_name:
+            Nombre de la variable de entorno.
+
+        default:
+            Valor utilizado cuando la variable no está definida.
+
+    Returns:
+        Número entero igual o superior a cero.
+
+    Raises:
+        ValueError:
+            Si el valor no es un entero o es negativo.
+    """
+
+    raw_value = os.getenv(
+        variable_name,
+        str(default),
+    ).strip()
+
+    try:
+        value = int(raw_value)
+    except ValueError as error:
+        raise ValueError(
+            f"{variable_name} debe contener un número entero. "
+            f"Valor recibido: {raw_value!r}."
+        ) from error
+
+    if value < 0:
+        raise ValueError(
+            f"{variable_name} no puede ser negativo. "
+            f"Valor recibido: {value}."
+        )
+
+    return value
 
 settings = _create_settings()

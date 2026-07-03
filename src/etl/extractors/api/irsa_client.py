@@ -14,11 +14,12 @@ No interpreta el XML ni accede a PostgreSQL.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import isfinite
 
 import httpx
+import math
 
 from etl.domain.value_objects import PhotometricBand
+from etl.config import settings
 from etl.logger import get_logger
 
 from etl.extractors.exceptions import (
@@ -64,8 +65,12 @@ class IrsaLightCurveQuery:
     declination: float
     radius_degrees: float
     band: PhotometricBand
-    minimum_observations: int = 15
-    bad_catalog_flags_mask: int | None = None
+    minimum_observations: int = (
+        settings.irsa_minimum_observations
+    )
+    bad_catalog_flags_mask: int | None = (
+        settings.irsa_bad_catalog_flags_mask
+    )
 
     def __post_init__(self) -> None:
         normalized_band = PhotometricBand.from_value(self.band)
@@ -139,7 +144,7 @@ class IrsaLightCurveQuery:
             ),
             "BANDNAME": self.band.value,
             "NOBS_MIN": str(self.minimum_observations),
-            "FORMAT": "VOTABLE",
+            "FORMAT": "votable",
         }
 
         if self.bad_catalog_flags_mask is not None:
@@ -169,7 +174,7 @@ class IrsaLightCurveQuery:
 
         numeric_value = float(value)
 
-        if not isfinite(numeric_value):
+        if not math.isfinite(numeric_value):
             raise ValueError(
                 f"{field_name} debe ser finito."
             )
@@ -211,22 +216,55 @@ class IrsaClient:
     def __init__(
         self,
         *,
-        timeout_seconds: float = 60.0,
+        timeout_seconds: float | None = None,
     ) -> None:
         """
-        Inicializa el cliente.
+        Inicializa el cliente HTTP de IRSA.
 
         Args:
             timeout_seconds:
-                Tiempo máximo de espera para la petición HTTP.
+                Tiempo máximo de espera para cada petición HTTP.
+
+                Si no se proporciona, se utiliza el valor definido mediante
+                ``IRSA_REQUEST_TIMEOUT_SECONDS``.
         """
 
-        if timeout_seconds <= 0:
+        resolved_timeout = (
+            settings.irsa_request_timeout_seconds
+            if timeout_seconds is None
+            else timeout_seconds
+        )
+
+        if isinstance(resolved_timeout, bool) or not isinstance(
+            resolved_timeout,
+            (int, float),
+        ):
+            raise TypeError(
+                "timeout_seconds debe ser un número real o None."
+            )
+
+        normalized_timeout = float(resolved_timeout)
+
+        if not math.isfinite(normalized_timeout):
+            raise ValueError(
+                "timeout_seconds debe ser un número finito."
+            )
+
+        if normalized_timeout <= 0:
             raise ValueError(
                 "timeout_seconds debe ser mayor que cero."
             )
 
-        self._timeout = httpx.Timeout(timeout_seconds)
+        self._timeout_seconds = normalized_timeout
+        self._timeout = httpx.Timeout(normalized_timeout)
+    
+    @property
+    def timeout_seconds(self) -> float:
+        """
+        Devuelve el timeout configurado para las peticiones HTTP.
+        """
+
+        return self._timeout_seconds
 
     def download_light_curves(
         self,
@@ -262,13 +300,19 @@ class IrsaClient:
 
         logger.info(
             "Consultando curvas de luz en IRSA. "
-            "ra=%.8f dec=%.8f radius=%.8f "
-            "band=%s minimum_observations=%d",
+            "ra=%.8f dec=%.8f radius_degrees=%.8f "
+            "radius_arcseconds=%.4f band=%s "
+            "minimum_observations=%d "
+            "bad_catalog_flags_mask=%s "
+            "timeout_seconds=%.2f",
             query.right_ascension,
             query.declination,
             query.radius_degrees,
+            query.radius_degrees * 3600.0,
             query.band.value,
             query.minimum_observations,
+            query.bad_catalog_flags_mask,
+            self._timeout_seconds,
         )
 
         try:

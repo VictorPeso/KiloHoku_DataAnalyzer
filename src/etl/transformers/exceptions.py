@@ -51,3 +51,16 @@ class TransformationError(ValueError):
             complete_message = message
 
         super().__init__(complete_message)
+
+class IrsaSourceTransformationError(TransformationError):
+    """
+    Error producido al transformar resultados posicionales de IRSA.
+
+    Se utiliza cuando:
+
+    - Faltan columnas necesarias.
+    - Un oid no tiene un formato válido.
+    - Una coordenada está fuera de rango.
+    - IRSA devuelve un filtercode no soportado.
+    - No puede construirse una fuente candidata.
+    """
